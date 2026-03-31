@@ -530,6 +530,7 @@ MonoBehaviour:
     m_PreInfinity: 2
     m_PostInfinity: 2
     m_RotationOrder: 4
+  endPosition: {x: 2, y: 2, z: 0}
   moveDelay: 2
   moveTime: 5
 --- !u!1660057539 &9223372036854775807

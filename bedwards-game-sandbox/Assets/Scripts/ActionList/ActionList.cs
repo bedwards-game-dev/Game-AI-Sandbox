@@ -54,7 +54,6 @@ namespace ActionList
         // Actions                 //
         // ----------------------- //
         // TODO: Implement Custom Actions.
-        // TODO: Use Switch Case on State for Action Update
         // TODO: Sanitize/scale Animation Curves to be from 0-1 and last for InterpTime 
         // TODO: Break the Base Action Class into polymorphic subclasses: Timer, Interpolation, and Sub-Actions (Move, Scale, Fade, etc.)
         // TODO: Support different TimeScales (UI, Combat, Base, etc.), this should reference a different system which should keep track of each.
@@ -119,6 +118,7 @@ namespace ActionList
                 return timer < interpTime ? interpFunc.Evaluate(Linear(0, timer, interpTime)) : 1.0f;
             }
             
+            // Add Event Callbacks
             public void AddEventOnCompleted(Action fn)
             {
                 OnCompleted += fn;
@@ -135,33 +135,36 @@ namespace ActionList
                 // If we're done, stop updating and wait to be cleared
                 if (State == ActionState.Completed) return;
                 // If the target GameObject has been deleted, delete this action
-                if (Target == null) return;
-                
-                // Check for delay and wait until done
-                delay -= Time.deltaTime;
-                if (delay > 0.0f)
+                if (Target == null)
                 {
+                    Complete(false);
                     return;
                 }
-
-                // Transition from waiting to running exactly once
-                if (State == ActionState.Waiting)
-                {
-                    Start();
-                }
-
-                // Update Timer
-                timer += Time.deltaTime;
-                if (timer > interpTime) timer = interpTime;
-
-                // Perform the Action
-                Act();
-
-                // Check if we're done
-                if (!(timer >= interpTime)) return;
                 
-                // Complete the action, running any final updates and callbacks
-                Complete();
+                switch (State)
+                {
+                    case ActionState.Waiting:
+                        // Check for delay and wait until done
+                        delay -= Time.deltaTime;
+                        if (delay > 0.0f) return;
+                        // Start will change the current State, as well as call any first frame updates
+                        Start();
+                        break;
+                    case ActionState.Running:
+                        // Update Timer
+                        timer += Time.deltaTime;
+                        if (timer > interpTime) timer = interpTime;
+                        // Perform the Action
+                        Act();
+                        // Check if we're done
+                        if (!(timer >= interpTime)) return;
+                        // Complete the action, running any final updates and callbacks
+                        Complete();
+                        break;
+                    case ActionState.Completed:
+                    default:
+                        return;
+                }
             }
             private void Start(bool invokeCallbacks = true)
             {
@@ -192,7 +195,7 @@ namespace ActionList
             // A function for ending the action prematurely
             public void Interrupt(bool invokeCallbacks = true)
             {
-                Complete();
+                Complete(invokeCallbacks);
             }
         }
 
@@ -309,6 +312,7 @@ namespace ActionList
         // ----------------------- //
         // Action List             //
         // ----------------------- //
+        // TODO: Add Debug Key to see current actionList, action states, and interp progress
         
         // The current list of actions being performed
         private readonly List<BaseAction> currentActions = new();
@@ -332,7 +336,7 @@ namespace ActionList
             {
                 BaseAction act = currentActions[read];
                 act.Update();
-                if (act.GetCurrentState() == BaseAction.ActionState.Completed)
+                if (act.GetCurrentState() != BaseAction.ActionState.Completed)
                 {
                     currentActions[write++] = act;
                 }
