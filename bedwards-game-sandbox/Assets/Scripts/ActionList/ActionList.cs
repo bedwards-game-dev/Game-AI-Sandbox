@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+using TMPro;
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 namespace ActionList
 {
@@ -26,6 +28,7 @@ namespace ActionList
         // ----------------------- //
         // Interpolation Functions //
         // ----------------------- //
+        
         private static float Linear(float start, float current, float end)
         {
             float dividend = end - start;
@@ -53,12 +56,12 @@ namespace ActionList
         // ----------------------- //
         // Actions                 //
         // ----------------------- //
-        // TODO: Implement Custom Actions.
         // TODO: Sanitize/scale Animation Curves to be from 0-1 and last for InterpTime 
         // TODO: Break the Base Action Class into polymorphic subclasses: Timer, Interpolation, and Sub-Actions (Move, Scale, Fade, etc.)
         // TODO: Support different TimeScales (UI, Combat, Base, etc.), this should reference a different system which should keep track of each.
-
-        public abstract class BaseAction
+        // TODO: Make Actions handle high dt (fallthrough the switch case and track remaining dt)
+        
+        public class BaseAction
         {
             private float timer; // Time alive
             private float delay; // Time before starting
@@ -113,7 +116,7 @@ namespace ActionList
             }
 
             // Get the result of the interpolation Function based on the actions timer
-            protected float GetInterpolateMultiplier()
+            public float GetInterpolateMultiplier()
             {
                 return timer < interpTime ? interpFunc.Evaluate(Linear(0, timer, interpTime)) : 1.0f;
             }
@@ -190,7 +193,7 @@ namespace ActionList
             // Run any cleanup after the last frame of Act
             protected virtual void LastFrameCleanup() { }
             // Abstract Function for action-specific behavior
-            protected abstract void Act();
+            protected virtual void Act() { }
             
             // A function for ending the action prematurely
             public void Interrupt(bool invokeCallbacks = true)
@@ -259,13 +262,19 @@ namespace ActionList
             }
         }
 
-        public class CallbackAction : BaseAction
+        public class CustomAction : BaseAction
         {
             private readonly Action fn;
-            public CallbackAction(GameObject target, Action fn, float delay) : base(target, 0, delay)
+            public CustomAction(GameObject target, Action fn, float interpTime, float delay = 0) : base(target, interpTime, delay)
             {
                 this.fn = fn;
             }
+            
+            public CustomAction(GameObject target, Action fn, float interpTime, AnimationCurve interpFunc, float delay = 0) : base(target, interpTime, interpFunc, delay)
+            {
+                this.fn = fn;
+            }
+
 
             protected override void Act()
             {
@@ -312,16 +321,44 @@ namespace ActionList
         // ----------------------- //
         // Action List             //
         // ----------------------- //
-        // TODO: Add Debug Key to see current actionList, action states, and interp progress
+        // TODO: Change Debug Output to show delay when delaying
         
         // The current list of actions being performed
         private readonly List<BaseAction> currentActions = new();
         // Actions to add to the list at the beginning of every update
         private readonly List<BaseAction> actionsToAdd = new();
-
+        
+        // Debug Info
+        [SerializeField] private InputAction debugToggle;
+        [SerializeField] private TMP_Text debugTextbox;
+        private bool debugPossible = true;
+        private bool debugEnabled;
+        private string debugOutput = "";
+        
+        private void Start()
+        {
+            debugToggle = InputSystem.actions.FindAction("DebugToggle");
+            if (debugToggle == null)
+            {
+                Debug.LogWarning("ActionList: Debug Toggle not set, cannot show debug info."); 
+                debugPossible = false;
+            }
+            // ReSharper disable once InvertIf for readability
+            if (debugTextbox == null)
+            {
+                Debug.LogWarning("ActionList: Debug Textbox not set, cannot show debug info."); 
+                debugPossible = false;
+                return;
+            }
+            debugTextbox.text = "";
+        }
         // Update is called once per frame
         private void Update()
         {
+            // Check if we should show debug info
+            if (debugToggle.triggered) ToggleDebugInfo();
+            debugOutput = "Action List:\n";
+            
             // Add new actions
             if (actionsToAdd.Count > 0)
             {
@@ -336,9 +373,17 @@ namespace ActionList
             {
                 BaseAction act = currentActions[read];
                 act.Update();
-                if (act.GetCurrentState() != BaseAction.ActionState.Completed)
+                
+                // If the action is done, don't write it back into the action list
+                if (act.GetCurrentState() == BaseAction.ActionState.Completed) continue;
+                
+                // Write the action to the list
+                currentActions[write++] = act;
+                
+                // Add Debug Info
+                if (debugEnabled)
                 {
-                    currentActions[write++] = act;
+                    debugOutput += act + " " + act.GetCurrentState() + " " + act.GetPercentDone() + "%\n";
                 }
             }
 
@@ -346,6 +391,12 @@ namespace ActionList
             if (write < currentActions.Count)
             {
                 currentActions.RemoveRange(write, currentActions.Count - write);
+            }
+            
+            // Write the Debug info to the textbox
+            if (debugEnabled)
+            {
+                debugTextbox.text = debugOutput;
             }
         }
 
@@ -360,5 +411,19 @@ namespace ActionList
             currentActions.Clear();
             actionsToAdd.Clear();
         }
+        
+        private void ToggleDebugInfo()
+        {
+            if (!debugPossible) return;
+            
+            debugEnabled = !debugEnabled;
+            
+            // Clear Textbox on disabled
+            if (!debugEnabled)
+            {
+                debugTextbox.text = "";
+            }
+        }
+        
     }
 }
