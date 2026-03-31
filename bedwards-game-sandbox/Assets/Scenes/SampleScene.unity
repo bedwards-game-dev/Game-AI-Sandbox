@@ -488,6 +488,50 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 96c89a563fb835f43bcef7ce95cdad33, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::TestAgent
+  testCurve:
+    serializedVersion: 2
+    m_Curve:
+    - serializedVersion: 3
+      time: 0
+      value: 0
+      inSlope: -0.13602011
+      outSlope: -0.13602011
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0
+      outWeight: 0.14323007
+    - serializedVersion: 3
+      time: 0.45350194
+      value: 0.052102417
+      inSlope: 2.2500978
+      outSlope: 2.2500978
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0.33333334
+      outWeight: 0.33333334
+    - serializedVersion: 3
+      time: 0.7294391
+      value: 1.0525124
+      inSlope: 5.655005
+      outSlope: 5.655005
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0.33333334
+      outWeight: 0.05432699
+    - serializedVersion: 3
+      time: 1
+      value: 1
+      inSlope: 3.9193554
+      outSlope: 3.9193554
+      tangentMode: 0
+      weightedMode: 0
+      inWeight: 0.11794069
+      outWeight: 0
+    m_PreInfinity: 2
+    m_PostInfinity: 2
+    m_RotationOrder: 4
+  moveDelay: 2
+  moveTime: 5
 --- !u!1660057539 &9223372036854775807
 SceneRoots:
   m_ObjectHideFlags: 0

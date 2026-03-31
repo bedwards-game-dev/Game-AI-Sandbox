@@ -26,18 +26,17 @@ namespace ActionList
         // ----------------------- //
         // Interpolation Functions //
         // ----------------------- //
-        // TODO: support animation curves
-        
-        // For more functions, check easings.net
-        public delegate float Interp(float start, float current, float end);
-        public static float Linear(float start, float current, float end)
+        private static float Linear(float start, float current, float end)
         {
             float dividend = end - start;
             if (Mathf.Approximately(dividend, 0f)) return 1.0f;
             float x = (current - start) / dividend;
             return Mathf.Clamp01(x);
         }
-
+    
+        /* DEPRECATED - USE ANIMATION CURVES
+        // For more functions, check easings.net
+        public delegate float Interp(float start, float current, float end);
         public static float EaseInOut(float start, float current, float end)
         {
             float x = Linear(start, current, end);
@@ -49,72 +48,106 @@ namespace ActionList
             float x = Linear(start, current, end);
             return 1 - Mathf.Pow(1 - x, 5);
         }
+         */
 
         // ----------------------- //
         // Actions                 //
         // ----------------------- //
-        // TODO: Implement Custom Actions that only return the Interp Multiplier.
+        // TODO: Implement Custom Actions.
+        // TODO: Use Switch Case on State for Action Update
+        // TODO: Sanitize/scale Animation Curves to be from 0-1 and last for InterpTime 
         // TODO: Break the Base Action Class into polymorphic subclasses: Timer, Interpolation, and Sub-Actions (Move, Scale, Fade, etc.)
-        // TODO: Make Callback decorators part of the BaseAction class. And add events for OnFirstFrame and OnCompletion
-        // TODO: Add completed state, and change tasks to only be deleted when Action is in Completed State instead of relying on the return value of Update
         // TODO: Support different TimeScales (UI, Combat, Base, etc.), this should reference a different system which should keep track of each.
-        
+
         public abstract class BaseAction
         {
             private float timer; // Time alive
             private float delay; // Time before starting
+
             private readonly float interpTime; // Duration of Action
-            private readonly Interp interpFunc = Linear; // Interpolation Function
+
+            //private readonly Interp interpFunc = Linear; // Interpolation Function
+            private readonly AnimationCurve interpFunc; // Interpolation Function
             protected readonly GameObject Target; // Object performing the Action
 
-            protected enum ActionState { Waiting, Running }
+            // Event Functions
+            private event Action OnCompleted;
+            private event Action OnStart;
+            
+            public enum ActionState
+            {
+                Waiting,
+                Running,
+                Completed
+            }
+
             protected ActionState State = ActionState.Waiting;
 
+            // Constructor
             protected BaseAction(GameObject target, float interpTime, float delay = 0.0f)
             {
                 Target = target;
+                interpFunc = AnimationCurve.Linear(0, 0, interpTime, 1);
                 this.interpTime = Mathf.Max(0f, interpTime);
                 this.delay = delay;
             }
-
-            protected BaseAction(GameObject target, float interpTime, Interp interpFunc, float delay = 0.0f)
+            
+            // Override Constructor for Custom Easing Functions
+            protected BaseAction(GameObject target, float interpTime, AnimationCurve interpFunc, float delay = 0.0f)
             {
                 Target = target;
                 this.interpTime = Mathf.Max(0f, interpTime);
-                this.interpFunc = interpFunc ?? Linear;
+                this.interpFunc = interpFunc ?? AnimationCurve.Linear(0, 0, 1, 1);
                 this.delay = delay;
+            }
+
+            // Returns the current state of the Action
+            public ActionState GetCurrentState()
+            {
+                return State;
             }
 
             // Get a linear percent done between 0-1
             public float GetPercentDone()
             {
-                return interpTime <= 0.0f ? 1.0f : Linear(0, timer, interpTime);
+                return timer < interpTime ? Linear(0, timer, interpTime) : 1.0f;
             }
 
             // Get the result of the interpolation Function based on the actions timer
             protected float GetInterpolateMultiplier()
             {
-                return interpTime <= 0.0f ? 1.0f : interpFunc(0.0f, timer, interpTime);
+                return timer < interpTime ? interpFunc.Evaluate(Linear(0, timer, interpTime)) : 1.0f;
+            }
+            
+            public void AddEventOnCompleted(Action fn)
+            {
+                OnCompleted += fn;
+            }
+            
+            public void AddEventOnStart(Action fn)
+            {
+                OnStart += fn;
             }
 
             // Returns true if Interpolation has finished
-            public bool Update()
+            public void Update()
             {
+                // If we're done, stop updating and wait to be cleared
+                if (State == ActionState.Completed) return;
                 // If the target GameObject has been deleted, delete this action
-                if (Target == null) return true;
-
+                if (Target == null) return;
+                
                 // Check for delay and wait until done
                 delay -= Time.deltaTime;
                 if (delay > 0.0f)
                 {
-                    return false;
+                    return;
                 }
 
                 // Transition from waiting to running exactly once
                 if (State == ActionState.Waiting)
                 {
-                    FirstFrameUpdate();
-                    State = ActionState.Running;
+                    Start();
                 }
 
                 // Update Timer
@@ -124,15 +157,43 @@ namespace ActionList
                 // Perform the Action
                 Act();
 
-                // If done, return true
-                return timer >= interpTime;
+                // Check if we're done
+                if (!(timer >= interpTime)) return;
+                
+                // Complete the action, running any final updates and callbacks
+                Complete();
+            }
+            private void Start(bool invokeCallbacks = true)
+            {
+                // Make sure we aren't invoking the start callbacks twice
+                if (State == ActionState.Running) return; 
+
+                State = ActionState.Running;
+                FirstFrameUpdate();
+                if (invokeCallbacks) OnStart?.Invoke();
+            }
+            public void Complete(bool invokeCallbacks = true)
+            {
+                // Make sure we aren't invoking the completed callbacks twice
+                if (State == ActionState.Completed) return; 
+                
+                State = ActionState.Completed;
+                LastFrameCleanup();
+                if (invokeCallbacks) OnCompleted?.Invoke();
             }
 
             // Placeholder function for any first frame updates
             protected virtual void FirstFrameUpdate() { }
-
+            // Run any cleanup after the last frame of Act
+            protected virtual void LastFrameCleanup() { }
             // Abstract Function for action-specific behavior
             protected abstract void Act();
+            
+            // A function for ending the action prematurely
+            public void Interrupt(bool invokeCallbacks = true)
+            {
+                Complete();
+            }
         }
 
         public class MoveAction : BaseAction
@@ -141,12 +202,12 @@ namespace ActionList
             private Vector3 end;
             private Vector3 diff;
 
-            public MoveAction(GameObject target, Vector2 destination, float interpTime, float delay = 0) : base(target, interpTime, delay)
+            public MoveAction(GameObject target, Vector3 destination, float interpTime, float delay = 0) : base(target, interpTime, delay)
             {
                 end = destination;
             }
 
-            public MoveAction(GameObject target, Vector2 destination, float interpTime, Interp interpFunc, float delay = 0) : base(target, interpTime, interpFunc, delay)
+            public MoveAction(GameObject target, Vector3 destination, float interpTime, AnimationCurve interpFunc, float delay = 0) : base(target, interpTime, interpFunc, delay)
             {
                 end = destination;
             }
@@ -158,6 +219,7 @@ namespace ActionList
 
             protected override void FirstFrameUpdate()
             {
+                // Maintain 2D z-value
                 start = Target.transform.localPosition;
                 end.z = start.z;
                 diff = end - start;
@@ -170,12 +232,12 @@ namespace ActionList
             private Vector3 end;
             private Vector3 diff;
 
-            public ScaleAction(GameObject target, Vector2 end, float interpTime, float delay = 0) : base(target, interpTime, delay)
+            public ScaleAction(GameObject target, Vector3 end, float interpTime, float delay = 0) : base(target, interpTime, delay)
             {
                 this.end = end;
             }
 
-            public ScaleAction(GameObject target, Vector2 end, float interpTime, Interp interpFunc, float delay = 0) : base(target, interpTime, interpFunc, delay)
+            public ScaleAction(GameObject target, Vector3 end, float interpTime, AnimationCurve interpFunc, float delay = 0) : base(target, interpTime, interpFunc, delay)
             {
                 this.end = end;
             }
@@ -187,6 +249,7 @@ namespace ActionList
 
             protected override void FirstFrameUpdate()
             {
+                // Maintain 2D z-value
                 start = Target.transform.localScale;
                 end.z = start.z;
                 diff = end - start;
@@ -221,7 +284,7 @@ namespace ActionList
                 this.end = end;
             }
 
-            public CanvasFadeAction(CanvasGroup target, float end, float interpTime, Interp interpFunc, float delay = 0) : base(target.gameObject, interpTime, interpFunc, delay)
+            public CanvasFadeAction(CanvasGroup target, float end, float interpTime, AnimationCurve interpFunc, float delay = 0) : base(target.gameObject, interpTime, interpFunc, delay)
             {
                 this.canvas = target;
                 this.end = end;
@@ -246,7 +309,6 @@ namespace ActionList
         // ----------------------- //
         // Action List             //
         // ----------------------- //
-        // TODO: Add a Remove() Function
         
         // The current list of actions being performed
         private readonly List<BaseAction> currentActions = new();
@@ -269,7 +331,8 @@ namespace ActionList
             for (var read = 0; read < currentActions.Count; ++read)
             {
                 BaseAction act = currentActions[read];
-                if (!act.Update())
+                act.Update();
+                if (act.GetCurrentState() == BaseAction.ActionState.Completed)
                 {
                     currentActions[write++] = act;
                 }
@@ -287,7 +350,7 @@ namespace ActionList
             if (act == null) return;
             actionsToAdd.Add(act);
         }
-
+    
         public void Clear()
         {
             currentActions.Clear();
