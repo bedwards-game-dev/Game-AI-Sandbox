@@ -69,7 +69,7 @@ namespace ActionList
             private readonly float interpTime; // Duration of Action
 
             //private readonly Interp interpFunc = Linear; // Interpolation Function
-            private readonly AnimationCurve interpFunc; // Interpolation Function
+            private readonly AnimationCurve easingCurve; // Interpolation Function
             protected readonly GameObject Target; // Object performing the Action
 
             // Event Functions
@@ -89,22 +89,22 @@ namespace ActionList
             protected BaseAction(GameObject target, float interpTime, float delay = 0.0f)
             {
                 Target = target;
-                interpFunc = AnimationCurve.Linear(0, 0, interpTime, 1);
+                easingCurve = AnimationCurve.Linear(0, 0, interpTime, 1);
                 this.interpTime = Mathf.Max(0f, interpTime);
                 this.delay = delay;
             }
             
             // Override Constructor for Custom Easing Functions
-            protected BaseAction(GameObject target, float interpTime, AnimationCurve interpFunc, float delay = 0.0f)
+            protected BaseAction(GameObject target, float interpTime, AnimationCurve easingCurve, float delay = 0.0f)
             {
                 Target = target;
                 this.interpTime = Mathf.Max(0f, interpTime);
-                this.interpFunc = interpFunc ?? AnimationCurve.Linear(0, 0, 1, 1);
+                this.easingCurve = easingCurve ?? AnimationCurve.Linear(0, 0, 1, 1);
                 this.delay = delay;
             }
 
             // Returns the current state of the Action
-            public ActionState GetCurrentState()
+            public ActionState GetCurrentState() 
             {
                 return State;
             }
@@ -118,7 +118,7 @@ namespace ActionList
             // Get the result of the interpolation Function based on the actions timer
             public float GetInterpolateMultiplier()
             {
-                return timer < interpTime ? interpFunc.Evaluate(Linear(0, timer, interpTime)) : 1.0f;
+                return timer < interpTime ? easingCurve.Evaluate(Linear(0, timer, interpTime)) : 1.0f;
             }
             
             // Add Event Callbacks
@@ -178,7 +178,7 @@ namespace ActionList
                 FirstFrameUpdate();
                 if (invokeCallbacks) OnStart?.Invoke();
             }
-            public void Complete(bool invokeCallbacks = true)
+            private void Complete(bool invokeCallbacks = true)
             {
                 // Make sure we aren't invoking the completed callbacks twice
                 if (State == ActionState.Completed) return; 
@@ -213,7 +213,7 @@ namespace ActionList
                 end = destination;
             }
 
-            public MoveAction(GameObject target, Vector3 destination, float interpTime, AnimationCurve interpFunc, float delay = 0) : base(target, interpTime, interpFunc, delay)
+            public MoveAction(GameObject target, Vector3 destination, float interpTime, AnimationCurve easingCurve, float delay = 0) : base(target, interpTime, easingCurve, delay)
             {
                 end = destination;
             }
@@ -243,7 +243,7 @@ namespace ActionList
                 this.end = end;
             }
 
-            public ScaleAction(GameObject target, Vector3 end, float interpTime, AnimationCurve interpFunc, float delay = 0) : base(target, interpTime, interpFunc, delay)
+            public ScaleAction(GameObject target, Vector3 end, float interpTime, AnimationCurve easingCurve, float delay = 0) : base(target, interpTime, easingCurve, delay)
             {
                 this.end = end;
             }
@@ -270,7 +270,7 @@ namespace ActionList
                 this.fn = fn;
             }
             
-            public CustomAction(GameObject target, Action fn, float interpTime, AnimationCurve interpFunc, float delay = 0) : base(target, interpTime, interpFunc, delay)
+            public CustomAction(GameObject target, Action fn, float interpTime, AnimationCurve easingCurve, float delay = 0) : base(target, interpTime, easingCurve, delay)
             {
                 this.fn = fn;
             }
@@ -296,7 +296,7 @@ namespace ActionList
                 this.end = end;
             }
 
-            public CanvasFadeAction(CanvasGroup target, float end, float interpTime, AnimationCurve interpFunc, float delay = 0) : base(target.gameObject, interpTime, interpFunc, delay)
+            public CanvasFadeAction(CanvasGroup target, float end, float interpTime, AnimationCurve easingCurve, float delay = 0) : base(target.gameObject, interpTime, easingCurve, delay)
             {
                 this.canvas = target;
                 this.end = end;
