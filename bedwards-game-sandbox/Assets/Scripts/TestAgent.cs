@@ -11,7 +11,7 @@ public class TestAgent : MonoBehaviour
     // Start is called once before the first execution of Update after the MonoBehaviour is created
     void Start()
     {
-        ActionList.ActionList.Instance.Add(new ActionList.ActionList.MoveAction(gameObject, endPosition, moveTime, testCurve, moveDelay));
+        ActionList.Instance.Add(new ActionList.MoveAction(gameObject, endPosition, moveTime, testCurve, moveDelay));
     }
 
     // Update is called once per frame

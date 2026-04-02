@@ -165,15 +165,23 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::ActionList.ActionList
   debugToggle:
     m_Name: Debug Toggle
-    m_Type: 0
-    m_ExpectedControlType: 
-    m_Id: 70535460-b23c-494b-bd09-ce2240106711
+    m_Type: 1
+    m_ExpectedControlType: Button
+    m_Id: ddf1840b-3a50-498c-819d-71f88b8a3524
     m_Processors: 
     m_Interactions: 
     m_SingletonActionBindings:
     - m_Name: 
-      m_Id: df699dbf-19e8-4989-b9f0-111500124e70
+      m_Id: ce4d26af-96f5-4b19-882d-fdabecb7d0c2
       m_Path: <Keyboard>/d
+      m_Interactions: 
+      m_Processors: 
+      m_Groups: 
+      m_Action: Debug Toggle
+      m_Flags: 0
+    - m_Name: 
+      m_Id: 5dda2103-a240-489c-a144-35387b9a232a
+      m_Path: 
       m_Interactions: 
       m_Processors: 
       m_Groups: 
